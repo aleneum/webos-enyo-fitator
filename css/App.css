@@ -1,0 +1,46 @@
+ body {
+ 	background-color:#724788;
+ 	color: white;
+ }
+
+ .enyo-input-input{
+ 	color: white;
+ }
+
+.enyo-button {
+	width: 28px;
+	height: 28px;
+}
+
+.enyo-button-icon {
+	vertical-align: middle;
+	text-align: center;
+}
+
+#feedReader_title {
+	text-align: center;
+	font-size: xx-large;
+	font-weight: bold;
+}
+
+#feedReader_iconImage {
+ 	width:150px; /* you can use % */
+    height: auto;
+ }
+
+ #feedReader_lastCheckedLabel {
+ 	font-size: small;
+ }
+
+ #feedReader_scoreLabel {
+ 	font-weight: bold;
+ 	font-size: x-large;
+ }
+
+ #feedReader_statusLabel {
+ 	margin-left: 5px;
+ }
+
+ #feedReader_scoreField {
+ 	width: 150px;
+ }

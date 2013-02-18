@@ -1,0 +1,6 @@
+{
+  "result":[
+         {"name": "score", "value": "123"},
+         {"name": "pw", "value": "123"},
+         {"name": "usr", "value": "jdoe"}]
+}

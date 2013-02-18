@@ -1,0 +1,10 @@
+{
+	"id": "com.github.fitator",
+	"version": "0.9.0",
+	"vendor": "aleneum",
+	"type": "web",
+	"main": "index.html",
+	"title": "Fitator",
+	"uiRevision": 2,
+	"icon": "images/lift.png"
+}
