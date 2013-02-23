@@ -1,12 +1,12 @@
 enyo.kind({
-	name: "MyApps.DummyStorage",
+	name: "fitator.DummyStorage",
 	kind: "enyo.Component",
 
     create: function() {
     	this.inherited(arguments);
     	this.username = 'juser';
     	this.memory = {};
-        this.memory['juser'] = {value: 0, last_checked: -1, last_score: 0};
+        this.memory['juser'] = {value: 100, last_checked: new Date(), last_score: 10000};
     },
 
     setUsername: function(name) {

@@ -17,30 +17,30 @@
 	text-align: center;
 }
 
-#feedReader_title {
+#app_title {
 	text-align: center;
 	font-size: xx-large;
 	font-weight: bold;
 }
 
-#feedReader_iconImage {
+#app_iconImage {
  	width:150px; /* you can use % */
     height: auto;
  }
 
- #feedReader_lastCheckedLabel {
+ #app_lastCheckedLabel {
  	font-size: small;
  }
 
- #feedReader_scoreLabel {
+ #app_scoreLabel {
  	font-weight: bold;
  	font-size: x-large;
  }
 
- #feedReader_statusLabel {
+ #app_statusLabel {
  	margin-left: 5px;
  }
 
- #feedReader_scoreField {
+ #app_scoreField {
  	width: 150px;
  }

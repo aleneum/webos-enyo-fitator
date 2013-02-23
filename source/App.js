@@ -2,8 +2,12 @@ enyo.kind({
   name: "fitator.App",
   kind: enyo.VFlexBox,
   components: [
-  {name: "getFeed", kind: "WebService", onSuccess: "gotFeed", onFailure: "gotFeedFailure"},
+  //{name: "storage", kind: "fitator.WebOSStorage"},
+  {name: "alarmService", kind: "PalmService", service: "palm://com.palm.power/timeout/"},
+  {kind: enyo.ApplicationEvents,  onApplicationRelaunch: "relaunchHandler",
+    onWindowDeactivated: "windowDeactivatedHandler", onWindowActivated: "windowActivatedHandler"},
   {name: "storage", kind: "fitator.WebOSStorage"},
+
   {name : "makeSysSound", kind : "PalmService", service : "palm://com.palm.audio/systemsounds",
   method : "playFeedback"},
   {kind: "AppMenu", components: [
@@ -11,7 +15,7 @@ enyo.kind({
   ]},
   {kind:"Control", name:"title", content: "Fitator"},
   {name:"topGroup", kind:"Control", layoutKind: "HFlexLayout", components: [
-    {name: "iconImage", kind: "Image", src: "images/icon.png", imageHeight: 150},
+    {name: "iconImage", kind: "Image", src: "images/icon.png"},
     {kind: "RowGroup", caption: "Preferences", flex:3, components: [
       {name: "nameField", kind: "Input", selectAllOnFocus: true,
       focusClassName: "fieldFocused",hint: "Your Username", autoCapitalize:"lowercase"},
@@ -27,7 +31,7 @@ enyo.kind({
   {name: "buttonBox", kind: "Control", layoutKind: "HFlexLayout", components:[
     {name: "timerButton", kind: "IconButton", icon:"images/timer.png", onclick: "timerButtonClicked", toggling: "true"},
     {name: "onceButton", kind: "IconButton", icon:"images/once.png", onclick: "onceButtonClicked"},
-    {kind: "Picker", name: "valueField" , label: "value", items: [
+    {kind: "Picker", name: "valueField" , value: "1", onChange: "setScore", items: [
       {caption: "1", value: "1"},
       {caption: "5", value: "5"},
       {caption: "10", value: "10"},
@@ -35,16 +39,15 @@ enyo.kind({
       {caption: "50", value: "50"},
       {caption: "100", value: "100"}
     ]},
-    {name: "scoreField", kind: "Input", selectAllOnFocus: true, flex: 1,
-      focusClassName: "fieldFocused",hint: "your score", autoCapitalize:"lowercase"},
+    // {name: "scoreField", kind: "Control", flex: 1,
+    //   focusClassName: "fieldFocused",hint: "your score", autoCapitalize:"lowercase"},
+    {name: "filler", kind: "Control", flex: 1},
     {name: "submitButton", kind: "IconButton", icon:"images/lift.png", onclick: "submitButtonClicked"}
   ]}
   ],
 
 create: function() {
-    this.inherited(arguments); 
-    this.session_state = 0;
-  // give the storage some time for fire up 
+  this.inherited(arguments); 
   setTimeout(enyo.bind(this, this.initalizeInterface), 500);
 },
 
@@ -54,7 +57,7 @@ initalizeInterface: function() {
   } else {
     this.$.nameField
   }
-  this.$.scoreLabel.setContent("Score: " + this.$.storage.getScore());
+  this.setScore();
   var checked = "Never"
   if (this.$.storage.getLastChecked() != -1) {
     checked = this.$.storage.getLastChecked();
@@ -63,10 +66,67 @@ initalizeInterface: function() {
 },
 
 submitButtonClicked: function() {
-  this._gotFeed();
-  //var url = "https://www.fitocracy.com";
-  //this.$.getFeed.setUrl(url);
-  //this.$.getFeed.call();
+  this.useRequest();
+},
+
+useRequest: function(async) {
+  xhr = new XMLHttpRequest();
+
+  enyo.log("Collect token");
+  xhr.open("GET", "https://www.fitocracy.com/accounts/login", async);
+  xhr.send();
+
+  var anchor = "'csrfmiddlewaretoken' value='";
+  var idx = xhr.responseText.indexOf(anchor);
+  if (idx < 0) {
+    this.requestFailed("Could not retrieve csrftoken!");
+    
+    return;
+  }
+  idx += anchor.length;
+  var token = xhr.responseText.substring(idx,idx+32);
+  var params = "csrfmiddlewaretoken="+token;
+
+  enyo.log("Trying to login...");
+  params +="&is_username=1&json=1";
+  params +="&username="+this.$.nameField.getValue();
+  params +="&password="+this.$.pwField.getValue();
+  xhr.open("POST", "https://www.fitocracy.com/accounts/login/", async);
+  xhr.setRequestHeader("Origin", "https://www.fitocracy.com");
+  xhr.setRequestHeader("Referer", "https://www.fitocracy.com");
+  xhr.setRequestHeader("Content-Type", "application/xml");
+  xhr.setRequestHeader("Accept", "*/*");
+  xhr.setRequestHeader("Accept-Charset", "ISO-8859-1,utf-8;q=0.7,*;q=0.3");
+  xhr.send(params);
+
+  if (xhr.responseText.charAt(0) == "{") {
+    if (JSON.parse(xhr.responseText).success == true) {
+      enyo.log("Login success");
+      xhr.open("GET","https://www.fitocracy.com/profile/"
+        +this.$.nameField.getValue(), async);
+      xhr.send();
+      var idx = xhr.responseText.indexOf("stat-points");
+      if (idx < 0) {
+        this.requestFailed("Cannot find your score!");
+      } else {
+        var sub = xhr.responseText.substring(idx,idx+200);
+        var arr = sub.split('\n');
+        for (var el in arr) {
+          if (arr[el].indexOf(">") < 0) {
+            var new_score = parseInt(arr[el].replace(/[^0-9]/g,''));
+            this.conductUpdate(new_score);
+            break;
+          }
+        }
+      }
+    } else {
+      enyo.log("Login failed");
+      this.requestFailed(JSON.parse(xhr.responseText).error);
+      return;
+    }
+  }
+  xhr.open("GET", "https://www.fitocracy.com/accounts/logout", async);
+  xhr.send();
 },
 
 _gotFeed: function() {
@@ -83,7 +143,7 @@ conductUpdate: function(score) {
   var new_time = new Date();
   var diff = this.$.storage.updateScore(score, new_time);
   this.$.storage.saveData();
-  this.$.scoreLabel.setContent("Score: " + this.$.storage.getScore());
+  this.setScore();
   this.$.lastCheckedLabel.setContent("Last Checked: " + this.$.storage.getLastChecked());
   if (old_time == -1) {
     comment = "We are set. You get 42 points for free. Start training now to earn more.";
@@ -110,84 +170,9 @@ conductUpdate: function(score) {
   this.$.statusLabel.setContent("You earned " + diff + " points. That is " + each + " each day. " + comment);
 },
 
-gotFeed: function(inSender, inResponse) {
-  if (this.session_state < 1) {
-    enyo.log("Get Session");
-    if (/<title>.*Home.*<\/title>/.test(inResponse) == true) {
-      this.session_state = 2;
-      this.$.getFeed.setUrl("https://www.fitocracy.com/profile/" + this.$.nameField.getValue());
-      this.$.getFeed.call();
-      return;
-    }
-    var anchor = "'csrfmiddlewaretoken' value='";
-    var idx = inResponse.indexOf(anchor);
-    idx += anchor.length
-    var token = inResponse.substring(idx,idx+32);
-    this.$.getFeed.setUrl("https://www.fitocracy.com/accounts/login/");
-    this.$.getFeed.setMethod("POST");
-    this.session_state = 1;
-    this.$.getFeed.setHeaders({
-     "Referer": "https://www.fitocracy.com/",
-     "Origin": "https://www.fitocracy.com"
-    });
-    this.$.getFeed.setUsername(this.$.nameField.getValue());
-    this.$.getFeed.setPassword(this.$.pwField.getValue());
-    this.$.getFeed.call({
-     csrfmiddlewaretoken: token,
-     is_username: "1",
-     json: "1",
-     next: "/profile/" + this.$.nameField.getValue() + "/",
-     username: this.$.nameField.getValue(),
-     password: this.$.pwField.getValue()
-    });
-    //xhr = new XMLHttpRequest();
-    // var params = "csrfmiddlewaretoken="+token+"&is_username=1&json=1&username=juser&password=hallo";
-    // xhr.open("POST", "https://www.fitocracy.com/accounts/login/", false);
-    // xhr.setRequestHeader("Origin", "http://google.com");
-    // xhr.setRequestHeader("Referer", "http://www.fitocracy.com");
-    //file://.media.cryptofs.app.usr.palm.applications.com.palm.feedreader
-    //xhr.setRequestHeader("Content-Type", "application/xml");
-    //xhr.setRequestHeader("Accept", "*/*");
-    //xhr.setRequestHeader("Accept-Charset", "ISO-8859-1,utf-8;q=0.7,*;q=0.3");
-    //xhr.send(params);
-    //enyo.log(xhr.responseText);
-    //enyo.log(xhr.status);
-    this.session_state = 1;
-  } else if (this.session_state < 2) {
-    enyo.log("Auth");
-    this.$.getFeed.setMethod("GET");
-    if (inResponse.success == true) {
-      this.$.getFeed.setUrl("https://www.fitocracy.com/profile/" + this.$.nameField.getValue() + "/");
-      this.session_state = 2;
-      this.$.getFeed.call();
-    } else {
-      this.$.statusLabel.setContent(inResponse.error);
-      this.session_state = 0;
-    }
-  } else if (this.session_state < 3){
-    enyo.log("Set Score");
-    var idx = inResponse.indexOf("stat-points");
-    var sub = inResponse.substring(idx,idx+200);
-    var arr = sub.split('\n');
-    for (var el in arr) {
-      if (arr[el].indexOf(">") < 0) {
-        var new_score = parseInt(arr[el].replace(/[^0-9]/g,''));
-        this.conductUpdate(new_score);
-        break;
-      }
-    }
-    this.$.getFeed.setUrl("https://www.fitocracy.com/accounts/logout/");
-    this.$.getFeed.setMethod("GET");
-    this.session_state = 3;
-    this.$.getFeed.call();
-  } else {
-    this.session_state = 0
-  }
-},
-
-gotFeedFailure: function(inSender, inResponse, inRequest) {
-  this.$.statusLabel.setContent("something went wrong :(.");
-  enyo.log(inRequest.xhr.status);
+requestFailed: function(reason) {
+  enyo.log("ERROR: " + reason);
+  this.$.statusLabel.setContent(reason);
 },
 
 clearRecords: function() {
@@ -195,17 +180,17 @@ clearRecords: function() {
   this.$.statusLabel.setContent("Okay. All records are gone.");
 },
 
-onceButtonClicked:function() {
+onceButtonClicked:function(times) {
+  times = (typeof times != "number") ? 1 : times;
   var invalid = /[^0-9]/i.test(this.$.valueField.getValue());
   if (invalid == false) {
     var value = parseInt(this.$.valueField.getValue());
     var old_score = this.$.storage.getScore();
-    var new_score = this.$.storage.reduceScore(value);
+    var new_score = this.$.storage.reduceScore(value * times);
     if ( new_score == 0 || (old_score * new_score < 0)) {
-      this.$.statusLabel.setContent("Uhoh. No points left!");
-      this.$.makeSysSound.call({name: "sysmgr_alert"});
+      this.outOfPointsHandler();
     }
-    this.$.scoreLabel.setContent("Score: " + new_score);
+    this.setScore();
   } else {
     this.$.statusLabel.setContent("OOps. Only numbers allowed in value field.");
     if (this.$.timerButton.depressed == true) {
@@ -221,13 +206,84 @@ onceButtonClicked:function() {
 timerButtonClicked:function() {
   if (this.$.timerButton.depressed == true) {
     this.$.valueField.setDisabled(true);
-    this.$.onceButton.setDisabled(true);
-    this.timer = setInterval(enyo.bind(this, this.onceButtonClicked), 60000);
+    this.$.onceButton.setDisabled(true);    
     this.onceButtonClicked();
+    this.timer = setInterval(enyo.bind(this, this.onceButtonClicked), 60000);
   } else {
     clearInterval(this.timer);
     this.$.valueField.setDisabled(false);
     this.$.onceButton.setDisabled(false);
   }
+},
+
+outOfPointsHandler: function() {
+  this.$.statusLabel.setContent("Uhoh. No points left!");
+  this.$.makeSysSound.call({name: "sysmgr_alert"});
+},
+
+setScore: function(){
+  var str = "Score: " + this.$.storage.getScore();
+  str += " (" + Math.floor(this.$.storage.getScore() / parseInt(this.$.valueField.getValue()));
+  str += " minutes)";
+  this.$.scoreLabel.setContent(str);
+},
+
+startTimer: function() {
+  var time_left = this.$.storage.getScore() / parseInt(this.$.valueField.getValue());
+  if (time_left > 0) {
+    var hours = Math.floor(time_left / 60);
+    var minutes = Math.floor(time_left) % 60;
+    var seconds = Math.floor((time_left % 1) * 60);
+    if (hours < 10) { hours = "0" + hours.toString() }
+    if (minutes < 10) { minutes = "0" + minutes.toString() }
+    if (seconds < 10) { seconds = "0" + seconds.toString() }
+    var str = hours + ":" + minutes + ":" + seconds;
+    enyo.log("set timer to " + str);
+    this.$.alarmService.call({
+      "key": enyo.fetchAppId()+".timer",
+      "in": str,
+      "uri": "palm://com.palm.applicationManager/launch",
+      "params": {"id": enyo.fetchAppId(), "params": {"action": "alarm"}}},
+      {"method": "set"});
+  }
+},
+
+stopTimer: function() {
+  this.$.alarmService.call({"key": enyo.fetchAppId()+".timer"}, {"method": "clear"});
+},
+
+relaunchHandler: function(inSender, inEvent) {
+  enyo.log("relaunchHandler called");
+  if (enyo.windowParams.action == "alarm") {
+      enyo.log("relaunchHandler alarm");
+      this.$.storage.reduceScore(this.$.storage.getScore());
+      this.setScore();
+      this.outOfPointsHandler();
+      this.time_passed = new Date();
+  }
+},
+
+windowDeactivatedHandler: function(inSender, inEvent) {
+  enyo.log("Window deactivated");
+  if (this.$.timerButton.depressed == true) {
+    this.unloadTime = new Date();
+    clearInterval(this.timer);
+    this.startTimer();
+  }
+},
+
+windowActivatedHandler: function(inSender, inEvent) {
+  enyo.log("activated");
+  this.stopTimer();
+  if (this.$.timerButton.depressed == true) {
+    var time_passed = new Date() - this.unloadTime;
+    time_passed = parseInt(time_passed/60000);
+    enyo.log("time_passed" + time_passed);
+    if (time_passed > 0) {
+      this.onceButtonClicked(time_passed);
+    }
+    this.timer = setInterval(enyo.bind(this, this.onceButtonClicked), 60000);
+  }
 }
+
 });
