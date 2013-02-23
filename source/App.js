@@ -70,63 +70,68 @@ submitButtonClicked: function() {
 },
 
 useRequest: function(async) {
-  xhr = new XMLHttpRequest();
+  try{
+    xhr = new XMLHttpRequest();
 
-  enyo.log("Collect token");
-  xhr.open("GET", "https://www.fitocracy.com/accounts/login", async);
-  xhr.send();
+    enyo.log("Collect token");
+    xhr.open("GET", "https://www.fitocracy.com/accounts/login", async);
+    xhr.send();
 
-  var anchor = "'csrfmiddlewaretoken' value='";
-  var idx = xhr.responseText.indexOf(anchor);
-  if (idx < 0) {
-    this.requestFailed("Could not retrieve csrftoken!");
-    
-    return;
-  }
-  idx += anchor.length;
-  var token = xhr.responseText.substring(idx,idx+32);
-  var params = "csrfmiddlewaretoken="+token;
-
-  enyo.log("Trying to login...");
-  params +="&is_username=1&json=1";
-  params +="&username="+this.$.nameField.getValue();
-  params +="&password="+this.$.pwField.getValue();
-  xhr.open("POST", "https://www.fitocracy.com/accounts/login/", async);
-  xhr.setRequestHeader("Origin", "https://www.fitocracy.com");
-  xhr.setRequestHeader("Referer", "https://www.fitocracy.com");
-  xhr.setRequestHeader("Content-Type", "application/xml");
-  xhr.setRequestHeader("Accept", "*/*");
-  xhr.setRequestHeader("Accept-Charset", "ISO-8859-1,utf-8;q=0.7,*;q=0.3");
-  xhr.send(params);
-
-  if (xhr.responseText.charAt(0) == "{") {
-    if (JSON.parse(xhr.responseText).success == true) {
-      enyo.log("Login success");
-      xhr.open("GET","https://www.fitocracy.com/profile/"
-        +this.$.nameField.getValue(), async);
-      xhr.send();
-      var idx = xhr.responseText.indexOf("stat-points");
-      if (idx < 0) {
-        this.requestFailed("Cannot find your score!");
-      } else {
-        var sub = xhr.responseText.substring(idx,idx+200);
-        var arr = sub.split('\n');
-        for (var el in arr) {
-          if (arr[el].indexOf(">") < 0) {
-            var new_score = parseInt(arr[el].replace(/[^0-9]/g,''));
-            this.conductUpdate(new_score);
-            break;
-          }
-        }
-      }
-    } else {
-      enyo.log("Login failed");
-      this.requestFailed(JSON.parse(xhr.responseText).error);
+    var anchor = "'csrfmiddlewaretoken' value='";
+    var idx = xhr.responseText.indexOf(anchor);
+    if (idx < 0) {
+      this.requestFailed("Could not retrieve csrftoken!");
       return;
     }
-  }
-  xhr.open("GET", "https://www.fitocracy.com/accounts/logout", async);
-  xhr.send();
+    idx += anchor.length;
+    var token = xhr.responseText.substring(idx,idx+32);
+    var params = "csrfmiddlewaretoken="+token;
+
+    enyo.log("Trying to login...");
+    params +="&is_username=1&json=1";
+    params +="&username="+this.$.nameField.getValue();
+    params +="&password="+this.$.pwField.getValue();
+    xhr.open("POST", "https://www.fitocracy.com/accounts/login/", async);
+    xhr.setRequestHeader("Origin", "https://www.fitocracy.com");
+    xhr.setRequestHeader("Referer", "https://www.fitocracy.com");
+    xhr.setRequestHeader("Content-Type", "application/xml");
+    xhr.setRequestHeader("Accept", "*/*");
+    xhr.setRequestHeader("Accept-Charset", "ISO-8859-1,utf-8;q=0.7,*;q=0.3");
+    xhr.send(params);
+
+    if (xhr.responseText.charAt(0) == "{") {
+      if (JSON.parse(xhr.responseText).success == true) {
+        enyo.log("Login success");
+        xhr.open("GET","https://www.fitocracy.com/profile/"
+          +this.$.nameField.getValue(), async);
+        xhr.send();
+        var idx = xhr.responseText.indexOf("stat-points");
+        if (idx < 0) {
+          this.requestFailed("Cannot find your score!");
+        } else {
+          var sub = xhr.responseText.substring(idx,idx+200);
+          var arr = sub.split('\n');
+          for (var el in arr) {
+            if (arr[el].indexOf(">") < 0) {
+              var new_score = parseInt(arr[el].replace(/[^0-9]/g,''));
+              this.conductUpdate(new_score);
+              break;
+            }
+          }
+        }
+      } else {
+        enyo.log("Login failed");
+        this.requestFailed(JSON.parse(xhr.responseText).error);
+        return;
+      }
+    }
+    xhr.open("GET", "https://www.fitocracy.com/accounts/logout", async);
+    xhr.send();
+  } catch (ex) {
+    enyo.warn("Exception caught: " + ex.message);
+    this.requestFailed("I cannot hear the servers' whisper. Check your internet connection and try again.");
+    return;
+  } 
 },
 
 _gotFeed: function() {

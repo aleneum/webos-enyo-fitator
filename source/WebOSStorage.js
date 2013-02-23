@@ -120,7 +120,6 @@ enyo.kind({
     },
 
     handleRemoveKind: function(inSender, inResponse) {
-    	return;
         this.$.registerKind.call({owner: enyo.fetchAppId()});
         var obj = [];
         if (this.username.length > 0) {
