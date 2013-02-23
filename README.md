@@ -1,7 +1,7 @@
 Fitator
 =======
 
-* status: 0.0.1 (probably broken)
+* status: 0.9.5 (beta)
 
 A small tool (with a not so creative name) to convert [fitocracy](https://www.fitocracy.com) points into a 'currency' I can use to do things (as some kind of treat e.g. watching TV or gaming).
 I am not affiliated with Fitocracy whatsoever!
